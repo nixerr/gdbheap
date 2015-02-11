@@ -758,6 +758,9 @@ class HeapAll(gdb.Command):
         ms = glibc_arenas.get_ms()
         for i, chunk in enumerate(ms.iter_chunks()):
             size = chunk.chunksize()
+            if size == 0:
+                print "Chunk size == 0... break"
+                break
             if chunk.is_inuse():
                 kind = ' inuse'
             else:
