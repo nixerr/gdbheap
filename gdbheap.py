@@ -755,23 +755,56 @@ class HeapAll(gdb.Command):
 
         print 'All chunks of memory on heap (both used and free)'
         print '-------------------------------------------------'
-        ms = glibc_arenas.get_ms()
-        for i, chunk in enumerate(ms.iter_chunks()):
-            size = chunk.chunksize()
-            if size == 0:
-                print "Chunk size == 0... break"
-                break
-            if chunk.is_inuse():
-                kind = ' inuse'
-            else:
-                kind = ' free'
+        arenas = glibc_arenas.arenas #get_arenas()
+#        print arenas
+#gdb.parse_and_eval("&main_arena")
+        for arena in arenas:
+            if arena.address == gdb.parse_and_eval("&main_arena"):
+		print arena.address
+                ms = arena
+                for i, chunk in enumerate(ms.iter_chunks()):
+                    size = chunk.chunksize()
+                    if chunk.is_inuse():
+                        kind = ' inuse'
+                    else:
+                        kind = ' free'
 
-            print ('%i: %s -> %s %s: %i bytes (%s)'
-                   % (i,
-                      fmt_addr(chunk.as_address()),
-                      fmt_addr(chunk.as_address()+size-1),
-                      kind, size, chunk))
-        print
+                    print ('%i: %s -> %s %s: %i bytes (%s)'
+                          % (i,
+                             fmt_addr(chunk.as_address()),
+                             fmt_addr(chunk.as_address()+size-1),
+                             kind, size, chunk))
+
+            else:
+                print arena.address
+                ms = arena
+                for i, chunk in enumerate(ms.iter_sbrk_chunks_not_main()):
+                    size = chunk.chunksize()
+                    if chunk.is_inuse():
+                        kind = ' inuse'
+                    else:
+                        kind = ' free'
+
+                    print ('%i: %s -> %s %s: %i bytes (%s)'
+                          % (i,
+                             fmt_addr(chunk.as_address()),
+                             fmt_addr(chunk.as_address()+size-1),
+                             kind, size, chunk))
+#                    print
+#        ms = glibc_arenas.get_ms()
+#        for i, chunk in enumerate(ms.iter_chunks()):
+#            size = chunk.chunksize()
+#            if chunk.is_inuse():
+#                kind = ' inuse'
+#            else:
+#                kind = ' free'
+#
+#            print ('%i: %s -> %s %s: %i bytes (%s)'
+#                   % (i,
+#                      fmt_addr(chunk.as_address()),
+#                      fmt_addr(chunk.as_address()+size-1),
+#                      kind, size, chunk))
+#        print
 
 class HeapLog(gdb.Command):
     'Print a log of recorded heap states'
@@ -2048,6 +2081,30 @@ class MallocState(WrappedValue):
             while chunk.as_address() != top:
                 yield chunk
                 # print '0x%x' % chunk.as_address(), chunk
+                try:
+                    chunk = chunk.next_chunk()
+                except RuntimeError:
+                    break
+
+
+    def iter_sbrk_chunks_not_main(self):
+
+	# sizeof(struct malloc_state) = 0x450 (i386)
+	# sizeof(struct malloc_state) = 0xxxx (x86_64)
+
+        if sizeof_ptr == 4:
+            chunk = int('%ld' % self.address) + 0x450
+        else:
+            chunk = int('%ld' % self.address) + 0x890
+
+        chunk = gdb.Value(chunk).cast(type_char_ptr)
+
+        chunk = MChunkPtr(chunk.cast(MChunkPtr.gdb_type()))
+
+        if chunk.as_address() > 0:
+            top = long(self.field('top'))
+            while chunk.as_address() != top:
+                yield chunk
                 try:
                     chunk = chunk.next_chunk()
                 except RuntimeError:
