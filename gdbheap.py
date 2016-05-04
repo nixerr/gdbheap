@@ -2032,7 +2032,10 @@ class MallocState(WrappedValue):
 
     def iter_mmap_chunks(self):
         for inf in gdb.inferiors():
-            for (start, end) in iter_mmap_heap_chunks(inf.pid):
+            thread  = gdb.selected_thread()
+            (pid, lwpid, tid) = thread.ptid
+            for (start, end) in iter_mmap_heap_chunks(pid):
+
                 # print "Trying 0x%x-0x%x" % (start, end)
                 try:
                     chunk = MChunkPtr(gdb.Value(start).cast(MChunkPtr.gdb_type()))
