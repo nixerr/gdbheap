@@ -24,6 +24,8 @@ import ply.lex as lex
 import ply.yacc as yacc
 import tempfile
 
+__type_cache = {}
+
 #from glib import read_global_var, g_quark_to_string
 
 class OldStyle:
@@ -70,10 +72,10 @@ def t_LITERAL_NUMBER(t):
     r'(0x[0-9a-fA-F]+|\d+)'
     try:
         if t.value.startswith('0x'):
-            t.value = long(t.value, 16)
+            t.value = int(t.value, 16)
         else:
-            t.value = long(t.value)
-    except ValueError:
+            t.value = int(t.value)
+    except(ValueError):
         raise ParserError(t.value)
     return t
 
@@ -95,11 +97,11 @@ def python_categorization(usage_set):
     try:
         val_interned = gdb.parse_and_eval('interned')
         pyop = PyDictObjectPtr.from_pyobject_ptr(val_interned)
-        ma_table = long(pyop.field('ma_table'))
+        ma_table = int(pyop.field('ma_table'))
         usage_set.set_addr_category(ma_table,
                                     Category('cpython', 'PyDictEntry table', 'interned'),
                                     level=1)
-    except RuntimeError:
+    except(RuntimeError):
         pass
 
     # Various kinds of per-type optimized allocator
@@ -110,13 +112,13 @@ def python_categorization(usage_set):
         val_block_list = gdb.parse_and_eval('block_list')
         if str(val_block_list.type.target()) != 'PyIntBlock':
             raise RuntimeError
-        while long(val_block_list) != 0:
-            usage_set.set_addr_category(long(val_block_list),
+        while int(val_block_list) != 0:
+            usage_set.set_addr_category(int(val_block_list),
                                         Category('cpython', '_intblock', ''),
                                         level=0)
             val_block_list = val_block_list['next']
 
-    except RuntimeError:
+    except(RuntimeError):
         pass
 
     # The Objects/floatobject.c: block_list
@@ -151,7 +153,7 @@ def t_newline(t):
     t.lexer.lineno += t.value.count("\n")
     
 def t_error(t):
-    print "Illegal character '%s'" % t.value[0]
+    print("Illegal character '%s'" % t.value[0])
     t.lexer.skip(1)
 
 lexer = lex.lex()
@@ -310,8 +312,8 @@ def do_query(args):
         filter_ = parse_query(args)
 
     if False:
-        print args
-        print filter_
+        print(args)
+        print(filter_)
 
     columns = [Column('Start',
                       lambda u: u.start,
@@ -359,7 +361,7 @@ def do_query(args):
                    u.hd])
 
     t.write(sys.stdout)
-    print
+    print()
  
 
 def p_expression_number(t):
@@ -457,7 +459,7 @@ def test_lexer(s):
     while True:
         tok = lexer.token()
         if not tok: break
-        print tok
+        print(tok)
 
 
 
@@ -484,10 +486,10 @@ def need_debuginfo(f):
     def g(self, args, from_tty):
         try:
             return f(self, args, from_tty)
-        except MissingDebuginfo, e:
-            print 'Missing debuginfo for %s' % e.module
-            print 'Suggested fix:'
-            print '    debuginfo-install %s' % e.module
+        except MissingDebuginfo as e:
+            print('Missing debuginfo for %s' % e.module)
+            print('Suggested fix:')
+            print('    debuginfo-install %s' % e.module)
     return g
 
 
@@ -502,8 +504,8 @@ class Usage(object):
     slots = ('start', 'size', 'category', 'level', 'hd', 'obj')
 
     def __init__(self, start, size, category=None, level=None, hd=None, obj=None):
-        assert isinstance(start, long)
-        assert isinstance(size, long)
+        assert isinstance(start, int)
+        assert isinstance(size, int)
         if category:
             assert isinstance(category, Category)
         self.start = start
@@ -574,15 +576,15 @@ class WrappedValue(object):
         return WrappedValue(self._gdbval.dereference())
 
 #    def address(self):
-#        return long(self._gdbval.cast(type_void_ptr))
+#        return int(self._gdbval.cast(type_void_ptr))
 
     def is_null(self):
-        return long(self._gdbval) == 0
+        return int(self._gdbval) == 0
 
 
 class WrappedPointer(WrappedValue):
     def as_address(self):
-        return long(self._gdbval.cast(type_void_ptr))
+        return int(self._gdbval.cast(type_void_ptr))
 
     def __str__(self):
         return ('<%s for inferior 0x%x>'
@@ -630,7 +632,7 @@ class Heap(gdb.Command):
                 else:
                     count_by_category[u.category] = 1
 
-        except KeyboardInterrupt:
+        except(KeyboardInterrupt):
             pass # FIXME
 
         t = Table(['Domain', 'Kind', 'Detail', 'Count', 'Allocated size'])
@@ -649,7 +651,7 @@ class Heap(gdb.Command):
                        ])
         t.add_row(['', '', 'TOTAL', fmt_size(total_count), fmt_size(total_size)])
         t.write(sys.stdout)
-        print
+        print()
 
 class HeapSizes(gdb.Command):
     'Print a report on memory usage, by sizes'
@@ -674,7 +676,7 @@ class HeapSizes(gdb.Command):
                     chunks_by_size[size] += 1
                 else:
                     chunks_by_size[size] = 1
-        except KeyboardInterrupt:
+        except(KeyboardInterrupt):
             pass # FIXME
         t = Table(['Chunk size', 'Num chunks', 'Allocated size'])
         for size in sorted(chunks_by_size.keys(),
@@ -684,7 +686,7 @@ class HeapSizes(gdb.Command):
                        fmt_size(chunks_by_size[size] * size)])
         t.add_row(['TOTALS', num_chunks, fmt_size(total_size)])
         t.write(sys.stdout)
-        print
+        print()
 
 
 class HeapUsed(gdb.Command):
@@ -696,8 +698,8 @@ class HeapUsed(gdb.Command):
 
     @need_debuginfo
     def invoke(self, args, from_tty):
-        print 'Used chunks of memory on heap'
-        print '-----------------------------'
+        print('Used chunks of memory on heap')
+        print('-----------------------------')
         ms = glibc_arenas.get_ms()
         for i, chunk in enumerate(ms.iter_chunks()):
             if not chunk.is_inuse():
@@ -712,7 +714,7 @@ class HeapUsed(gdb.Command):
                       fmt_addr(chunk.as_mem()),
                       fmt_addr(chunk.as_mem()+size-1),
                       size, category, hd))
-        print
+        print()
 
 class HeapFree(gdb.Command):
     'Print free heap chunks'
@@ -723,8 +725,8 @@ class HeapFree(gdb.Command):
 
     @need_debuginfo
     def invoke(self, args, from_tty):
-        print 'Free chunks of memory on heap'
-        print '-----------------------------'
+        print('Free chunks of memory on heap')
+        print('-----------------------------')
         ms = glibc_arenas.get_ms()
         total_size = 0
         for i, chunk in enumerate(ms.iter_free_chunks()):
@@ -740,7 +742,8 @@ class HeapFree(gdb.Command):
                       fmt_addr(chunk.as_mem()),
                       fmt_addr(chunk.as_mem()+size-1),
                       size, category, hd))
-        print "Total size: %s" % total_size
+
+        print("Total size: %s" % total_size)
 
 
 class HeapAll(gdb.Command):
@@ -753,14 +756,14 @@ class HeapAll(gdb.Command):
     @need_debuginfo
     def invoke(self, args, from_tty):
 
-        print 'All chunks of memory on heap (both used and free)'
-        print '-------------------------------------------------'
+        print('All chunks of memory on heap (both used and free)')
+        print('-------------------------------------------------')
         arenas = glibc_arenas.arenas #get_arenas()
-#        print arenas
-#gdb.parse_and_eval("&main_arena")
+        # print arenas
+        # gdb.parse_and_eval("&main_arena")
         for arena in arenas:
             if arena.address == gdb.parse_and_eval("&main_arena"):
-		print arena.address
+                print(arena.address)
                 ms = arena
                 for i, chunk in enumerate(ms.iter_chunks()):
                     size = chunk.chunksize()
@@ -776,7 +779,7 @@ class HeapAll(gdb.Command):
                              kind, size, chunk))
 
             else:
-                print arena.address
+                print(arena.address)
                 ms = arena
                 for i, chunk in enumerate(ms.iter_sbrk_chunks_not_main()):
                     size = chunk.chunksize()
@@ -817,18 +820,18 @@ class HeapLog(gdb.Command):
     def invoke(self, args, from_tty):
         h = history
         if len(h.snapshots) == 0:
-            print '(no history)'
+            print('(no history)')
             return
-        for i in xrange(len(h.snapshots), 0, -1):
+        for i in range(len(h.snapshots), 0, -1):
             s = h.snapshots[i-1]
-            print 'Label %i "%s" at %s' % (i, s.name, s.time)
-            print '    ', s.summary()
+            print('Label %i "%s" at %s' % (i, s.name, s.time))
+            print('    ', s.summary())
             if i > 1:
                 prev = h.snapshots[i-2]
                 d = Diff(prev, s)
-                print
-                print '    ', d.stats()
-            print
+                print()
+                print('    ', d.stats())
+            print()
 
 class HeapLabel(gdb.Command):
     'Record the current state of the heap for later comparison'
@@ -840,7 +843,7 @@ class HeapLabel(gdb.Command):
     @need_debuginfo
     def invoke(self, args, from_tty):
         s = history.add(args)
-        print s.summary()
+        print(s.summary())
 
 
 class HeapDiff(gdb.Command):
@@ -854,15 +857,15 @@ class HeapDiff(gdb.Command):
     def invoke(self, args, from_tty):
         h = history
         if len(h.snapshots) == 0:
-            print '(no history)'
+            print('(no history)')
             return
         prev = h.snapshots[-1]
         curr = Snapshot.current('current')
         d = Diff(prev, curr)
-        print 'Changes from %s to %s' % (prev.name, curr.name)
-        print '  ', d.stats()
-        print
-        print '\n'.join(['  ' + line for line in d.as_changes().splitlines()])
+        print('Changes from %s to %s' % (prev.name, curr.name))
+        print('  ', d.stats())
+        print()
+        print('\n'.join(['  ' + line for line in d.as_changes().splitlines()]))
 
 class HeapSelect(gdb.Command):
     'Query used heap chunks'
@@ -877,8 +880,8 @@ class HeapSelect(gdb.Command):
 #        from heap.parser import ParserError
         try:
             do_query(args)
-        except ParserError, e:
-            print e
+        except ParserError as e:
+            print(e)
 
 class Hexdump(gdb.Command):
     'Print a hexdump, starting at the specific region of memory'
@@ -888,7 +891,7 @@ class Hexdump(gdb.Command):
                               gdb.COMMAND_DATA)
 
     def invoke(self, args, from_tty):
-        print repr(args)
+        print(repr(args))
         arg_list = gdb.string_to_argv(args)
 
         chars_only = True
@@ -921,7 +924,7 @@ class HeapArenas(gdb.Command):
     @need_debuginfo
     def invoke(self, args, from_tty):
         for n, arena in enumerate(glibc_arenas.arenas):
-            print "Arena #%d: %s" % (n, arena.address)
+            print("Arena #%d: %s" % (n, arena.address))
 
 class HeapArenaSelect(gdb.Command):
     'Select heap arena'
@@ -935,7 +938,7 @@ class HeapArenaSelect(gdb.Command):
         arena_num = int(args)
 
         glibc_arenas.cur_arena = glibc_arenas.arenas[arena_num]
-        print "Arena set to %s" % glibc_arenas.cur_arena.address
+        print("Arena set to %s" % glibc_arenas.cur_arena.address)
 
 class HeapActivate(gdb.Command):
     'Activate heap pluggin'
@@ -1068,7 +1071,7 @@ class GTypeInstancePtr(WrappedPointer):
                 #print typename, addr.dereference()
                 #if typename == 'GdkPixbuf':
                 #    print 'GOT PIXELS', addr['pixels']
-        except RuntimeError, e:
+        except RuntimeError as e:
             pass
             #print addr, e
 
@@ -1119,7 +1122,7 @@ class GdkImagePtr(GTypeInstancePtr):
                                     Category('X11', 'Image', dims),
                                     level=level+2, debug=True)
 
-        usage_set.set_addr_category(long(ximage.field('data')),
+        usage_set.set_addr_category(int(ximage.field('data')),
                                     Category('X11', 'Image data', dims),
                                     level=level+2, debug=True)
 
@@ -1127,7 +1130,7 @@ class GdkPixbufPtr(GTypeInstancePtr):
     def categorize_refs(self, usage_set, level=0, detail=None):
         dims = '%sw x %sh' % (self._gdbval['width'],
                               self._gdbval['height'])
-        usage_set.set_addr_category(long(self._gdbval['pixels']),
+        usage_set.set_addr_category(int(self._gdbval['pixels']),
                                     Category('GType', 'GdkPixbuf pixels', dims),
                                     level=level+1, debug=True)
 
@@ -1144,7 +1147,7 @@ class PangoCairoFcFontMapPtr(GTypeInstancePtr):
                                     Category('FreeType', 'Library', ''),
                                     level=level+1, debug=True)
 
-        usage_set.set_addr_category(long(FT_Library.field('raster_pool')),
+        usage_set.set_addr_category(int(FT_Library.field('raster_pool')),
                                     Category('FreeType', 'raster_pool', ''),
                                     level=level+2, debug=True)
         # potentially we could look at FT_Library['memory']
@@ -1200,7 +1203,7 @@ class Table(object):
 
     def _calc_col_widths(self):
         result = []
-        for colIndex in xrange(self.numcolumns):
+        for colIndex in range(self.numcolumns):
             result.append(self._calc_col_width(colIndex))
         return result
 
@@ -1229,7 +1232,7 @@ class UsageSet(object):
         self.usage_list = usage_list
 
         # Ensure we can do fast lookups:
-        self.usage_by_address = dict([(long(u.start), u) for u in usage_list])
+        self.usage_by_address = dict([(int(u.start), u) for u in usage_list])
 
     def set_addr_category(self, addr, category, level=0, visited=None, debug=False):
         '''Attempt to mark the given address as being of the given category,
@@ -1238,13 +1241,13 @@ class UsageSet(object):
         if visited:
             if addr in visited:
                 if debug:
-                    print 'addr 0x%x already visited (for category %r)' % (addr, category)
+                    print('addr 0x%x already visited (for category %r)' % (addr, category))
                 return False
             visited.add(addr)
 
         if addr in self.usage_by_address:
             if debug:
-                print 'addr 0x%x found (for category %r, level=%i)' % (addr, category, level)
+                print('addr 0x%x found (for category %r, level=%i)' % (addr, category, level))
             u = self.usage_by_address[addr]
             # Bail if we already have a more detailed categorization for the
             # address:
@@ -1258,7 +1261,7 @@ class UsageSet(object):
             return True
         else:
             if debug:
-                print 'addr 0x%x not found (for category %r)' % (addr, category)
+                print('addr 0x%x not found (for category %r)' % (addr, category))
 
 class PythonCategorizer(object):
     '''
@@ -1295,14 +1298,14 @@ class PythonCategorizer(object):
 
         if c.kind == 'list':
             list_ptr = gdb.Value(u.start + self._type_PyGC_Head.sizeof).cast(self._type_PyListObject_ptr)
-            ob_item = long(list_ptr['ob_item'])
+            ob_item = int(list_ptr['ob_item'])
             usage_set.set_addr_category(ob_item,
                                         Category('cpython', 'PyListObject ob_item table', None))
             return True
 
         elif c.kind == 'set':
             set_ptr = gdb.Value(u.start + self._type_PyGC_Head.sizeof).cast(self._type_PySetObject_ptr)
-            table = long(set_ptr['table'])
+            table = int(set_ptr['table'])
             usage_set.set_addr_category(table,
                                         Category('cpython', 'PySetObject setentry table', None))
             return True
@@ -1310,7 +1313,7 @@ class PythonCategorizer(object):
         if c.kind == 'code':
             # Python 2.6's PyCode_Type doesn't have Py_TPFLAGS_HAVE_GC:
             code_ptr = gdb.Value(u.start).cast(self._type_PyCodeObject_ptr)
-            co_code =  long(code_ptr['co_code'])
+            co_code =  int(code_ptr['co_code'])
             usage_set.set_addr_category(co_code,
                                         Category('python', 'str', 'bytecode'), # FIXME: on py3k this should be bytes
                                         level=1)
@@ -1322,7 +1325,7 @@ class PythonCategorizer(object):
 #            from heap.sqlite import categorize_sqlite3
             for fieldname, catname, fn in (('db', 'sqlite3', categorize_sqlite3),
                                            ('st', 'sqlite3_stmt', None)):
-                field_ptr = long(obj_ptr[fieldname])
+                field_ptr = int(obj_ptr[fieldname])
 
                 # sqlite's src/mem1.c adds a a sqlite3_int64 (size) to the front
                 # of the allocation, so we need to look 8 bytes earlier to find
@@ -1341,21 +1344,21 @@ class PythonCategorizer(object):
                 obj_ptr = gdb.Value(u.start).cast(ptr_type)
                 # print obj_ptr.dereference()
                 h = obj_ptr['h']
-                if usage_set.set_addr_category(long(h), Category('rpm', 'Header', None)):
+                if usage_set.set_addr_category(int(h), Category('rpm', 'Header', None)):
                     blob = h['blob']
-                    usage_set.set_addr_category(long(blob), Category('rpm', 'Header blob', None))
+                    usage_set.set_addr_category(int(blob), Category('rpm', 'Header blob', None))
 
         elif c.kind == 'rpm.mi':
             ptr_type = caching_lookup_type('struct rpmmiObject_s').pointer()
             if ptr_type:
                 obj_ptr = gdb.Value(u.start).cast(ptr_type)
-                print obj_ptr.dereference()
+                print(obj_ptr.dereference())
                 mi = obj_ptr['mi']
-                if usage_set.set_addr_category(long(mi),
+                if usage_set.set_addr_category(int(mi),
                                                Category('rpm', 'rpmdbMatchIterator', None)):
                     pass
                     #blob = h['blob']
-                    #usage_set.set_addr_category(long(blob), 'rpm Header blob')
+                    #usage_set.set_addr_category(int(blob), 'rpm Header blob')
 
         # Not categorized:
         return False
@@ -1403,7 +1406,7 @@ class PyArenaPtr(WrappedPointer):
         this arena'''
         # print 'num_pools:', num_pools
         pool_addr = self.initial_pool_addr
-        for idx in xrange(self.num_pools):
+        for idx in range(self.num_pools):
 
             # "pool_address" is a high-water-mark for activity within the arena;
             # pools at this location or beyond haven't been initialized yet:
@@ -1501,9 +1504,9 @@ class PyPoolPtr(WrappedPointer):
         freeblock = self.field('freeblock')
         _type_block_ptr_ptr = caching_lookup_type('unsigned char').pointer().pointer()
         # Walk the singly-linked list of free blocks for this chunk
-        while long(freeblock) != 0:
-            # print 'freeblock:', (fmt_addr(long(freeblock)), long(size))
-            yield (long(freeblock), long(size))
+        while int(freeblock) != 0:
+            # print 'freeblock:', (fmt_addr(int(freeblock)), int(size))
+            yield (int(freeblock), int(size))
             freeblock = freeblock.cast(_type_block_ptr_ptr).dereference()
 
     def _free_blocks(self):
@@ -1526,8 +1529,8 @@ class PyPoolPtr(WrappedPointer):
         while offset < nextoffset:
             addr = base_addr + offset
             # Filter out those within this pool's linked list of free blocks:
-            if long(addr) not in free_block_addresses:
-                yield (long(addr), long(size))
+            if int(addr) not in free_block_addresses:
+                yield (int(addr), int(size))
             offset += size
 
 class PyObjectPtr(WrappedPointer):
@@ -1557,7 +1560,7 @@ class PyObjectPtr(WrappedPointer):
     def safe_tp_name(self):
         try:
             return self.type().field('tp_name').string()
-        except RuntimeError, UnicodeDecodeError:
+        except(RuntimeError, UnicodeDecodeError):
             # Can't even read the object at all?
             return 'unknown'
 
@@ -1569,7 +1572,7 @@ class PyObjectPtr(WrappedPointer):
     def as_malloc_addr(self):
         ob_type = addr['ob_type']
         tp_flags = ob_type['tp_flags']
-        addr = long(self._gdbval)
+        addr = int(self._gdbval)
         if tp_flags & Py_TPFLAGS_: # FIXME
             return obj_addr_to_gc_addr(addr)
         else:
@@ -1588,7 +1591,7 @@ class ProgressNotifier(object):
     def next(self):
         self.count += 1
         if 0 == self.count % 10000:
-            print self.msg, self.count
+            print(self.msg, self.count)
         return self.inner.next()
 
 class CachedInferiorState(object):
@@ -1622,7 +1625,7 @@ class PyUnicodeObjectPtr(PyObjectPtr):
     _typename = 'PyUnicodeObject'
 
     def categorize_refs(self, usage_set, level=0, detail=None):
-        m_str = long(self.field('str'))
+        m_str = int(self.field('str'))
         usage_set.set_addr_category(m_str,
                                     Category('cpython', 'PyUnicodeObject buffer', detail),
                                     level)
@@ -1636,7 +1639,7 @@ class PyDictObjectPtr(PyObjectPtr):
     _typename = 'PyDictObject'
 
     def categorize_refs(self, usage_set, level=0, detail=None):
-        ma_table = long(self.field('ma_table'))
+        ma_table = int(self.field('ma_table'))
         usage_set.set_addr_category(ma_table,
                                     Category('cpython', 'PyDictEntry table', detail),
                                     level)
@@ -1674,7 +1677,7 @@ class PyInstanceObjectPtr(PyObjectPtr):
         _type_PyDictObject_ptr = caching_lookup_type('PyDictObject').pointer()
         in_dict = in_dict.cast(_type_PyDictObject_ptr)
 
-        ma_table = long(in_dict['ma_table'])
+        ma_table = int(in_dict['ma_table'])
 
         # Record details:
         usage_set.set_addr_category(ma_table,
@@ -1723,12 +1726,12 @@ class PyPyArenaDetection(object):
         self._arena_refs = []
         self._malloc_ptrs = {}
         for ar in self._ac.get_arenas():
-            print ar
-            print ar._gdbval.dereference()
+            print(ar)
+            print(ar._gdbval.dereference())
             self._arena_refs.append(ar)
             # ar_base : address as returned by malloc
-            self._malloc_ptrs[long(ar.field('ar_base'))] = ar
-        print self._malloc_ptrs
+            self._malloc_ptrs[int(ar.field('ar_base'))] = ar
+        print(self._malloc_ptrs)
 
     def as_arena(self, ptr, chunksize):
         if ptr in self._malloc_ptrs:
@@ -1742,7 +1745,7 @@ class HeapTypeObjectPtr(PyObjectPtr):
         attr_dict = self.get_attr_dict()
         if attr_dict:
             # Mark the dictionary's "detail" with our typename
-            # gdb.execute('print (PyObject*)0x%x' % long(attr_dict._gdbval))
+            # gdb.execute('print (PyObject*)0x%x' % int(attr_dict._gdbval))
             usage_set.set_addr_category(obj_addr_to_gc_addr(attr_dict._gdbval),
                                         Category('python', 'dict', '%s.__dict__' % self.safe_tp_name()),
                                         level=level+1)
@@ -1801,7 +1804,7 @@ class ArenaObject(WrappedPointer):
             raise WrongInferiorProcess('cpython')
 
         try:
-            for i in xrange(val_maxarenas):
+            for i in range(val_maxarenas):
                 # Look up "&arenas[i]":
                 obj = ArenaObject(val_arenas[i].address)
 
@@ -1862,9 +1865,9 @@ class HeapCPythonAllocators(gdb.Command):
                        '%i / %i ' % (arena.field('nfreepools'),
                                      arena.field('ntotalpools'))
                        ])
-        print 'Objects/obmalloc.c: %i arenas' % len(t.rows)
+        print('Objects/obmalloc.c: %i arenas' % len(t.rows))
         t.write(sys.stdout)
-        print
+        print()
 
 
 
@@ -1906,7 +1909,7 @@ class MChunkPtr(WrappedPointer):
 
     def size(self):
         if not(hasattr(self, '_cached_size')):
-            self._cached_size = long(self.field('size'))
+            self._cached_size = int(self.field('size'))
         return self._cached_size
 
     def chunksize(self):
@@ -2080,7 +2083,7 @@ class MallocState(WrappedValue):
 
         if chunk.as_address() > 0:
             # Iterate upwards until you reach "top":
-            top = long(self.field('top'))
+            top = int(self.field('top'))
             while chunk.as_address() != top:
                 yield chunk
                 # print '0x%x' % chunk.as_address(), chunk
@@ -2105,7 +2108,7 @@ class MallocState(WrappedValue):
         chunk = MChunkPtr(chunk.cast(MChunkPtr.gdb_type()))
 
         if chunk.as_address() > 0:
-            top = long(self.field('top'))
+            top = int(self.field('top'))
             while chunk.as_address() != top:
                 yield chunk
                 try:
@@ -2119,13 +2122,14 @@ class MallocState(WrappedValue):
         '''Yield a sequence of MChunkPtr (some of which may be MFastBinPtr),
         corresponding to the free chunks of memory'''
         # Account for top:
-        print 'top'
+        print('top')
         yield MChunkPtr(self.field('top'))
 
-        NFASTBINS = self.NFASTBINS()
+        NFASTBINS = int(self.NFASTBINS())
         # Traverse fastbins:
-        for i in xrange(0, NFASTBINS):
-            print 'fastbin %i' % i
+        for i in range(0, NFASTBINS):
+
+            print('fastbin %i' % i)
             p = self.fastbin(i)
             while not p.is_null():
                 yield p
@@ -2142,8 +2146,8 @@ class MallocState(WrappedValue):
         NBINS = 128
 
         # Traverse regular bins:
-        for i in xrange(1, NBINS):
-            print 'regular bin %i' % i
+        for i in range(1, NBINS):
+            print('regular bin %i' % i)
             b = self.bin_at(i)
             #print 'b: %s' % b
             p = b.last()
@@ -2193,7 +2197,7 @@ class GlibcArenas(object):
             self.main_arena = self.get_main_arena()
 #            self.main_arena = gdb.parse_and_eval("main_arena")
         except:
-            print "GDB-Heap didnt activate!"
+            print("GDB-Heap didnt activate!")
             return
 
         type_void_ptr = gdb.lookup_type('void').pointer()
@@ -2321,7 +2325,7 @@ def get_typenode_for_gtype(gtype):
         # (ii) it converts a TypeNode* to a TypeNode**
         return val[typenode >> 2]
 
-    gtype = long(gtype)
+    gtype = int(gtype)
     typenode = gtype - gtype % 4
     if typenode > (255 << 2):
         return gdb.Value(typenode).cast (gdb.lookup_type("TypeNode").pointer())
@@ -2385,7 +2389,7 @@ def get_class_name(addr, size):
     if not looks_like_ptr(vtable):
         return None
 
-    info = execute('info sym (void *)0x%x' % long(vtable))
+    info = execute('info sym (void *)0x%x' % int(vtable))
     # "vtable for Foo + 8 in section .rodata of /home/david/heap/test_cplusplus"
     m = re.match('vtable for (.*) \+ (.*)', info)
     if m:
@@ -2395,7 +2399,7 @@ def get_class_name(addr, size):
     
 
 def as_cplusplus_object(addr, size):
-    print get_class_name(addr)
+    print(get_class_name(addr))
     pass
 
 def fmt_addr(addr):
@@ -2416,9 +2420,9 @@ def caching_lookup_type(typename):
         raise RuntimeError('(cached) Could not find type "%s"' % typename)
     try:
         if 0:
-            print 'type cache miss: %r' % typename
+            print('type cache miss: %r' % typename)
         gdbtype = gdb.lookup_type(typename).strip_typedefs()
-    except RuntimeError, e:
+    except RuntimeError as e:
         # did not find the type: add a None to the cache
         gdbtype = None
     __type_cache[typename] = gdbtype
@@ -2444,7 +2448,7 @@ def offsetof(typename, fieldname):
     v = gdb.Value(0)
     v = v.cast(t)
     field = v[fieldname].cast(type_void_ptr)
-    return long(field.address)
+    return int(field.address)
 
 
 def check_missing_debuginfo(err, module):
@@ -2500,7 +2504,7 @@ def hexdump_as_bytes(addr, size, chars_only=True):
 
     return (result)
 
-def hexdump_as_long(addr, count):
+def hexdump_as_int(addr, count):
     addr = gdb.Value(addr).cast(caching_lookup_type('unsigned long').pointer())
     bytebuf = []
     longbuf = []
@@ -2591,7 +2595,7 @@ def categorize(u, usage_set):
         except (RuntimeError, UnicodeEncodeError, UnicodeDecodeError):
             # If something went wrong, assume that this wasn't really a python
             # object, and fall through:
-            print "couldn't categorize pyop:", pyop
+            print("couldn't categorize pyop:", pyop)
             pass
 
     # PyPy detection:
@@ -2651,14 +2655,14 @@ def iter_usage():
     try:
         cpython_arenas = CPythonArenaDetection()
         cached_state.add_arena_detector(cpython_arenas)
-    except WrongInferiorProcess:
+    except(WrongInferiorProcess):
         pass
 
 #    from heap.pypy import ArenaDetection as PyPyArenaDetection
     try:
         pypy_arenas = PyPyArenaDetection()
         cached_state.add_arena_detector(pypy_arenas)
-    except WrongInferiorProcess:
+    except(WrongInferiorProcess):
         pass
 
     for i, chunk in enumerate(ms.iter_mmap_chunks()):
@@ -2670,7 +2674,7 @@ def iter_usage():
             for u in arena.iter_usage():
                 yield u
         else:
-            yield Usage(long(mem_ptr), chunksize)
+            yield Usage(int(mem_ptr), chunksize)
 
     for chunk in ms.iter_sbrk_chunks():
         mem_ptr = chunk.as_mem()
@@ -2682,7 +2686,7 @@ def iter_usage():
                 for u in arena.iter_usage():
                     yield u
             else:
-                yield Usage(long(mem_ptr), chunksize)
+                yield Usage(int(mem_ptr), chunksize)
 
 
 
@@ -2736,9 +2740,9 @@ def int_from_int(gdbval):
 def obj_addr_to_gc_addr(addr):
     '''Given a PyObject* address, convert to a PyGC_Head* address
     (i.e. the allocator's view of the same)'''
-    #print 'obj_addr_to_gc_addr(%s)' % fmt_addr(long(addr))
+    #print 'obj_addr_to_gc_addr(%s)' % fmt_addr(int(addr))
     _type_PyGC_Head = caching_lookup_type('PyGC_Head')
-    return long(addr) - _type_PyGC_Head.sizeof
+    return int(addr) - _type_PyGC_Head.sizeof
 
 def as_python_object(addr):
     '''Given an address of an allocation, determine if it holds a PyObject,
@@ -2753,7 +2757,7 @@ def as_python_object(addr):
     try:
         _type_pyop = caching_lookup_type('PyObject').pointer()
         _type_PyGC_Head = caching_lookup_type('PyGC_Head')
-    except RuntimeError:
+    except(RuntimeError):
         # not linked against python
         return None
     pyop = is_pyobject_ptr(addr)
@@ -2778,8 +2782,8 @@ def as_python_object(addr):
 def sbrk_base():
     mp_ = MallocPar.get()
     try:
-        return long(mp_.field('sbrk_base'))
-    except RuntimeError, e:
+        return int(mp_.field('sbrk_base'))
+    except RuntimeError as e:
         check_missing_debuginfo(e, 'glibc')
         raise e
 
@@ -2875,7 +2879,7 @@ def iter_mmap_heap_chunks(pid):
                                 start, end = [int(m.group(i), 16) for i in (1, 2)]
                                 yield (start, end)
         else:
-            print 'unmatched :', line
+            print('unmatched :', line)
 
 
 def register_commands():
@@ -2945,17 +2949,17 @@ ARENA_SIZE            = (256 << 10)
 POOL_SIZE             = SYSTEM_PAGE_SIZE
 POOL_SIZE_MASK        = SYSTEM_PAGE_SIZE_MASK
 
-Py_TPFLAGS_HEAPTYPE = (1L << 9)
+Py_TPFLAGS_HEAPTYPE = (1 << 9)
 
-Py_TPFLAGS_INT_SUBCLASS      = (1L << 23)
-Py_TPFLAGS_LONG_SUBCLASS     = (1L << 24)
-Py_TPFLAGS_LIST_SUBCLASS     = (1L << 25)
-Py_TPFLAGS_TUPLE_SUBCLASS    = (1L << 26)
-Py_TPFLAGS_STRING_SUBCLASS   = (1L << 27)
-Py_TPFLAGS_UNICODE_SUBCLASS  = (1L << 28)
-Py_TPFLAGS_DICT_SUBCLASS     = (1L << 29)
-Py_TPFLAGS_BASE_EXC_SUBCLASS = (1L << 30)
-Py_TPFLAGS_TYPE_SUBCLASS     = (1L << 31)
+Py_TPFLAGS_INT_SUBCLASS      = (1 << 23)
+Py_TPFLAGS_LONG_SUBCLASS     = (1 << 24)
+Py_TPFLAGS_LIST_SUBCLASS     = (1 << 25)
+Py_TPFLAGS_TUPLE_SUBCLASS    = (1 << 26)
+Py_TPFLAGS_STRING_SUBCLASS   = (1 << 27)
+Py_TPFLAGS_UNICODE_SUBCLASS  = (1 << 28)
+Py_TPFLAGS_DICT_SUBCLASS     = (1 << 29)
+Py_TPFLAGS_BASE_EXC_SUBCLASS = (1 << 30)
+Py_TPFLAGS_TYPE_SUBCLASS     = (1 << 31)
 
 NamedTuple = namedtuple('NamedTuple', ('x', 'y'))
 
